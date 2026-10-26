@@ -75,3 +75,26 @@ test('dry runs never start the browser or send mail',async()=>{
  });
  assert.equal(result.status,'preview');assert.equal(result.issues.length,1);
 });
+
+test('accepted mail receipt prevents duplicate email after database write fails',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'wpl-receipt-'));
+ try{
+  const i=issue('5','receipt-case');
+  const file=join(dir,i.id+'.pdf');
+  writeFileSync(file,'%PDF-1.4\n1 0 obj <<>> endobj\n%%EOF');
+  let mailed=0,recorded=0;
+  const args={
+   now:new Date('2026-10-21T21:00:00Z'),pdfDir:dir,
+   load:async()=>{},update:async()=>1,pending:async()=>[i],
+   email:async()=>{mailed++;return {messageId:'mail-1'};},
+   complete:async()=>{},logger:muted
+  };
+  const first=await runAutomatedWeekly({...args,record:async()=>{throw Error('Turso unavailable');}});
+  assert.equal(first.status,'incomplete');
+  assert.equal(mailed,1);
+  const second=await runAutomatedWeekly({...args,record:async()=>{recorded++;}});
+  assert.equal(second.status,'sent');
+  assert.equal(mailed,1);
+  assert.equal(recorded,1);
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
