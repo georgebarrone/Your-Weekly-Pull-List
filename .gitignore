@@ -7,3 +7,5 @@ data/*.db-*
 .DS_Store
 *.log
 coverage/
+data/local-pdf-sent.json
+data/local-pdf-sent.json.tmp
