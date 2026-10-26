@@ -110,6 +110,7 @@ $('seriesSearch').addEventListener('input',()=>{
   clearTimeout(searchTimer);
   const q=$('seriesSearch').value.trim();
   state.searchRequest++;
+  state.searchResults=[];state.selectedSuggestion=-1;hideSuggestions();
   if(q.length<2){state.searchResults=[];hideSuggestions();$('searchStatus').textContent='Enter at least 2 characters to search.';return;}
   $('searchStatus').textContent='SEARCHING INDEX...';
   searchTimer=setTimeout(searchTitles,270);
@@ -168,6 +169,7 @@ function chooseRelease(index){
 }
 $('search').addEventListener('input',()=>{
   render();clearTimeout(releaseTimer);state.releaseRequest++;
+  state.releaseResults=[];state.releaseSelected=-1;drawReleaseSuggestions();
   if($('search').value.trim().length<2){state.releaseResults=[];drawReleaseSuggestions();$('releaseSearchStatus').textContent='';return;}
   releaseTimer=setTimeout(findReleaseTitles,270);
 });
