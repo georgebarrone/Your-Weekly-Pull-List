@@ -4,13 +4,17 @@
   "private": true,
   "type": "module",
   "description": "Personal comic pull-list dashboard and weekly email digest",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "start": "node src/server.js",
     "dev": "node --watch src/server.js",
     "weekly": "node scripts/weekly.js",
     "pin": "node scripts/hash-pin.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "pdf-inbox": "node scripts/pdf-inbox.js",
+    "pdf-watch": "node scripts/pdf-inbox.js --watch"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
