@@ -30,7 +30,9 @@ export function parseWeeklyHtml(html, baseUrl = 'https://batcave.biz/new-comics.
             try {return !!normalizeSeriesUrl(new URL($(x).attr('href'), baseUrl).toString());}
             catch {return false;}
           }).last();
-          const date = row.text().replace(/\s+/g,' ').match(/\b(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i);
+          // Some listing rows have no whitespace between an anchor's title and its date
+          // (e.g. </a>Oct 21), so a leading word boundary incorrectly drops them.
+          const date = row.text().replace(/\s+/g,' ').match(/(Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+(\d{1,2})\b/i);
           if (candidate.length && date) {seriesAnchor=candidate;dateMatch=date;break;}
           if (row[0]===sibling[0]) break;
           row=row.parent();
