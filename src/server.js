@@ -87,15 +87,10 @@ app.post('/api/subscriptions',async(req,res)=>{
       meta={title:matching.series_title,publisher:matching.publisher,kind:'ongoing',url};
     }
     const sub=await createSubscription(meta);
+    // Subscribing should not send a link-only message or prematurely mark
+    // the issue delivered: the PC's Wednesday PDF job owns those actions.
     const latest=await recentForSeries(url);
-    let immediate='no-latest-issue-in-catalog';
-    if (latest) {
-      try {
-        const range=weekBounds(latest.release_date);
-        await sendIssues([latest],{weekStart:range.start,weekEnd:range.end,mode:'immediate'});
-        await markDelivered([latest],'immediate');immediate='emailed';
-      } catch(e) { immediate=`not emailed: ${e.message}`; }
-    }
+    const immediate=latest?'queued-for-weekly-pdf':'no-latest-issue-in-catalog';
     res.json({ok:true,subscription:sub,immediate,overview:await overview()});
   } catch(e){fail(res,e);}
 });
