@@ -9,3 +9,6 @@ data/*.db-*
 coverage/
 data/local-pdf-sent.json
 data/local-pdf-sent.json.tmp
+
+data/browser-profile/
+data/weekly-pdfs/
