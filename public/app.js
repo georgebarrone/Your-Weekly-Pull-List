@@ -93,7 +93,7 @@ function chooseSuggestion(index){
 }
 async function reload() {setOverview(await api('/overview'));}
 async function refresh(){const data=await api('/catalog/refresh',{method:'POST'});setOverview(data.overview);$('syncLine').textContent=`Checked ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${data.imported} listed issues`;toast(`Catalog refreshed · ${data.imported} issue listings found`);}
-async function subscribe(url){const data=await api('/subscriptions',{method:'POST',body:{url}});setOverview(data.overview);closeModal();toast(`Added ${data.subscription.title}. Latest issue: ${data.immediate==='emailed'?'emailed successfully':data.immediate.replace('no-latest-issue-in-catalog','not found in the current catalog')}`);}
+async function subscribe(url){const data=await api('/subscriptions',{method:'POST',body:{url}});setOverview(data.overview);closeModal();toast(`Added ${data.subscription.title}. ${data.immediate==='queued-for-weekly-pdf'?'Eligible issues will be queued for PDF delivery on Wednesday.':'No recent issue is indexed yet.'}`);}
 $('loginForm').addEventListener('submit',async e=>{e.preventDefault();$('loginError').textContent='';await withBusy(async()=>{try{await api('/login',{method:'POST',body:{pin:$('pin').value}});$('pin').value='';showApp();await reload();}catch(error){$('loginError').textContent=error.message;}});});
 $('logout').addEventListener('click',()=>withBusy(async()=>{await api('/logout',{method:'POST'});showLogin();}));
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
