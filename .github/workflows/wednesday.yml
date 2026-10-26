@@ -32,6 +32,7 @@ jobs:
           SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
           EMAIL_TO: ${{ secrets.EMAIL_TO }}
           AUTHORIZED_PDF_HOSTS: ${{ secrets.AUTHORIZED_PDF_HOSTS }}
+          REQUIRE_PDF_ATTACHMENTS: ${{ vars.REQUIRE_PDF_ATTACHMENTS }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
           if [ "$DRY_RUN" = "true" ]; then node scripts/weekly.js --dry-run; else node scripts/weekly.js; fi
