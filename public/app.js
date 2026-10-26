@@ -1,5 +1,5 @@
 const $ = id=>document.getElementById(id);
-const state={overview:null,tab:'home',busy:false};
+const state={overview:null,tab:'home',busy:false,searchResults:[],selectedSuggestion:-1,searchRequest:0};
 const h = value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const shortDate = value => {try{return new Date(`${value}T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});}catch{return value;}};
 let toastTimer;
@@ -32,7 +32,7 @@ function render(){const data=state.overview;if(!data)return;
  $('allSubs').innerHTML=subs.length?subs.map(subscriptionRow).join(''):empty('Nothing subscribed yet.','Tap Add series to start your collection.');
  $('manualSeries').innerHTML=`<option value="">Choose a subscribed series</option>${subs.map(s=>`<option value="${h(s.series_url)}">${h(s.title)}</option>`).join('')}`;
  const query=$('search').value.trim().toLowerCase();
- const filtered=up.filter(c=>c.series_title.toLowerCase().includes(query) || c.publisher.toLowerCase().includes(query));
+ const filtered=(query?catalog:up).filter(c=>c.series_title.toLowerCase().includes(query) || (c.publisher||'').toLowerCase().includes(query));
  $('weeklyReleases').innerHTML=filtered.length?filtered.map(c=>issueRow(c,subscribed.has(c.series_url),delivered.has(c.id))).join(''):empty('No matching releases.','Try refreshing the catalog or changing your search.');
  $('historyList').innerHTML=history.length?history.map(x=>`<div class="list-row"><div class="list-row-left"><strong>${h(x.series_title||'Comic issue')} ${h(x.issue_number)}</strong><span>${h(x.release_date)} · Sent ${h(x.delivered_at)} · ${h(x.mode)}</span></div><span class="badge">✓ DELIVERED</span></div>`).join(''):empty('No deliveries yet.','Issues you receive by email will appear here.');
 }
@@ -43,8 +43,53 @@ function showTab(tab){state.tab=tab;document.querySelectorAll('[data-tab]').forE
  document.querySelector('.hero').classList.toggle('hidden',tab!=='home');document.querySelector('.status-line').classList.toggle('hidden',tab!=='home');document.querySelector('.stats-grid').classList.toggle('hidden',tab!=='home');
  window.scrollTo({top:0,behavior:'smooth'});
 }
-function openModal(url=''){$('seriesUrl').value=url;$('modal').classList.remove('hidden');$('seriesUrl').focus();}
-function closeModal(){$('modal').classList.add('hidden');}
+function openModal(url=''){
+  $('modal').classList.remove('hidden');
+  $('seriesUrl').value=url;
+  if(url){$('manualFallback').classList.remove('hidden');$('toggleManual').setAttribute('aria-expanded','true');$('seriesUrl').focus();}
+  else {$('seriesSearch').focus();}
+}
+function closeModal(){
+  $('modal').classList.add('hidden');
+  state.searchRequest++;
+  hideSuggestions();
+}
+function hideSuggestions(){
+  $('seriesSuggestions').classList.add('hidden');
+  $('seriesSearch').setAttribute('aria-expanded','false');
+}
+function renderSuggestions(){
+  const box=$('seriesSuggestions');
+  if(!state.searchResults.length){hideSuggestions();return;}
+  box.innerHTML=state.searchResults.map((item,i)=>`<button type="button" class="suggestion${state.selectedSuggestion===i?' active':''}" role="option" aria-selected="${state.selectedSuggestion===i}" data-suggest="${i}"><strong>${h(item.title)}</strong><span>${h(item.publisher||'SELECT ↵')}</span></button>`).join('');
+  box.classList.remove('hidden');
+  $('seriesSearch').setAttribute('aria-expanded','true');
+}
+let searchTimer;
+async function searchTitles(){
+  const query=$('seriesSearch').value.trim();
+  const token=++state.searchRequest;
+  if(query.length<2){state.searchResults=[];hideSuggestions();$('searchStatus').textContent='Enter at least 2 characters to search.';return;}
+  $('searchStatus').textContent='SEARCHING INDEX...';
+  try{
+    const data=await api('/series/search?q='+encodeURIComponent(query));
+    if(token!==state.searchRequest)return;
+    state.searchResults=data.results||[];
+    state.selectedSuggestion=-1;
+    renderSuggestions();
+    $('searchStatus').textContent=state.searchResults.length?`${state.searchResults.length} RESULT(S) — SELECT A TITLE OR USE ↑ ↓ ENTER`:'No match in the available index. You can still use a direct series URL.';
+  }catch(err){
+    if(token!==state.searchRequest)return;
+    state.searchResults=[];hideSuggestions();$('searchStatus').textContent=err.message;
+  }
+}
+function chooseSuggestion(index){
+  const item=state.searchResults[index];
+  if(!item)return;
+  $('seriesSearch').value=item.title;
+  hideSuggestions();
+  withBusy(()=>subscribe(item.url));
+}
 async function reload() {setOverview(await api('/overview'));}
 async function refresh(){const data=await api('/catalog/refresh',{method:'POST'});setOverview(data.overview);$('syncLine').textContent=`Checked ${new Date().toLocaleTimeString([], {hour:'numeric',minute:'2-digit'})} · ${data.imported} listed issues`;toast(`Catalog refreshed · ${data.imported} issue listings found`);}
 async function subscribe(url){const data=await api('/subscriptions',{method:'POST',body:{url}});setOverview(data.overview);closeModal();toast(`Added ${data.subscription.title}. Latest issue: ${data.immediate==='emailed'?'emailed successfully':data.immediate.replace('no-latest-issue-in-catalog','not found in the current catalog')}`);}
@@ -53,6 +98,42 @@ $('logout').addEventListener('click',()=>withBusy(async()=>{await api('/logout',
 document.querySelectorAll('[data-tab]').forEach(b=>b.addEventListener('click',()=>showTab(b.dataset.tab)));
 ['addHero','addSection','addCollection'].forEach(id=>$(id).addEventListener('click',()=>openModal()));
 ['refreshHero','refreshReleases'].forEach(id=>$(id).addEventListener('click',()=>withBusy(refresh)));
+$('toggleManual').addEventListener('click',()=>{
+  const show=$('manualFallback').classList.contains('hidden');
+  $('manualFallback').classList.toggle('hidden',!show);
+  $('toggleManual').setAttribute('aria-expanded',String(show));
+  $('toggleManual').textContent=show?'[-] HIDE DIRECT URL':'[+] USE A DIRECT SERIES URL INSTEAD';
+  if(show)$('seriesUrl').focus();
+});
+$('seriesSearch').addEventListener('input',()=>{
+  clearTimeout(searchTimer);
+  const q=$('seriesSearch').value.trim();
+  state.searchRequest++;
+  if(q.length<2){state.searchResults=[];hideSuggestions();$('searchStatus').textContent='Enter at least 2 characters to search.';return;}
+  $('searchStatus').textContent='SEARCHING INDEX...';
+  searchTimer=setTimeout(searchTitles,270);
+});
+$('seriesSearch').addEventListener('keydown',e=>{
+  if(e.key==='ArrowDown'||e.key==='ArrowUp'){
+    if(!state.searchResults.length)return;
+    e.preventDefault();
+    const delta=e.key==='ArrowDown'?1:-1;
+    state.selectedSuggestion=(state.selectedSuggestion+delta+state.searchResults.length)%state.searchResults.length;
+    renderSuggestions();
+  }
+  if(e.key==='Escape')hideSuggestions();
+});
+$('seriesSearchForm').addEventListener('submit',e=>{
+  e.preventDefault();
+  if(state.selectedSuggestion>=0)chooseSuggestion(state.selectedSuggestion);
+  else if(state.searchResults.length===1)chooseSuggestion(0);
+  else if(state.searchResults.length>1){state.selectedSuggestion=0;renderSuggestions();$('searchStatus').textContent='Choose a title with ↑ ↓ then press Enter.';}
+  else searchTitles();
+});
+$('seriesSuggestions').addEventListener('click',e=>{
+  const suggestion=e.target.closest('[data-suggest]');
+  if(suggestion)chooseSuggestion(Number(suggestion.dataset.suggest));
+});
 $('closeModal').addEventListener('click',closeModal);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
