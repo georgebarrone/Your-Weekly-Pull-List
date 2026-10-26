@@ -1,5 +1,5 @@
 const $ = id=>document.getElementById(id);
-const state={overview:null,tab:'home',busy:false,searchResults:[],selectedSuggestion:-1,searchRequest:0};
+const state={overview:null,tab:'home',busy:false,searchResults:[],selectedSuggestion:-1,searchRequest:0,releaseResults:[],releaseSelected:-1,releaseRequest:0};
 const h = value=>String(value??'').replace(/[&<>"']/g,ch=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
 const shortDate = value => {try{return new Date(`${value}T12:00:00Z`).toLocaleDateString('en-US',{month:'short',day:'numeric',timeZone:'UTC'});}catch{return value;}};
 let toastTimer;
@@ -139,7 +139,52 @@ $('closeModal').addEventListener('click',closeModal);
 $('modal').addEventListener('click',e=>{if(e.target===$('modal'))closeModal();});
 document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 $('addForm').addEventListener('submit',e=>{e.preventDefault();withBusy(()=>subscribe($('seriesUrl').value.trim()));});
-$('search').addEventListener('input',render);
+let releaseTimer;
+function drawReleaseSuggestions(){
+  const box=$('releaseSuggestions');
+  if(!state.releaseResults.length){box.classList.add('hidden');$('search').setAttribute('aria-expanded','false');return;}
+  box.innerHTML=state.releaseResults.map((item,i)=>`<button type="button" class="suggestion${state.releaseSelected===i?' active':''}" role="option" aria-selected="${state.releaseSelected===i}" data-release-suggest="${i}"><strong>${h(item.title)}</strong><span>+ SUBSCRIBE ↵</span></button>`).join('');
+  box.classList.remove('hidden');$('search').setAttribute('aria-expanded','true');
+}
+async function findReleaseTitles(){
+  const query=$('search').value.trim();
+  const token=++state.releaseRequest;
+  if(query.length<2){state.releaseResults=[];drawReleaseSuggestions();return;}
+  $('releaseSearchStatus').textContent='SEARCHING...';
+  try{
+    const data=await api('/series/search?q='+encodeURIComponent(query));
+    if(token!==state.releaseRequest)return;
+    state.releaseResults=data.results||[];
+    state.releaseSelected=-1;
+    drawReleaseSuggestions();
+    $('releaseSearchStatus').textContent=state.releaseResults.length?`${state.releaseResults.length} MATCHES IN SERIES INDEX`:'No series match in the current index.';
+  }catch(e){if(token!==state.releaseRequest)return;state.releaseResults=[];drawReleaseSuggestions();$('releaseSearchStatus').textContent=e.message;}
+}
+function chooseRelease(index){
+  const item=state.releaseResults[index];if(!item)return;
+  state.releaseResults=[];drawReleaseSuggestions();
+  $('search').value='';$('releaseSearchStatus').textContent='';
+  withBusy(()=>subscribe(item.url));
+}
+$('search').addEventListener('input',()=>{
+  render();clearTimeout(releaseTimer);state.releaseRequest++;
+  if($('search').value.trim().length<2){state.releaseResults=[];drawReleaseSuggestions();$('releaseSearchStatus').textContent='';return;}
+  releaseTimer=setTimeout(findReleaseTitles,270);
+});
+$('search').addEventListener('keydown',e=>{
+  if(['ArrowDown','ArrowUp'].includes(e.key)&&state.releaseResults.length){
+    e.preventDefault();state.releaseSelected=(state.releaseSelected+(e.key==='ArrowDown'?1:-1)+state.releaseResults.length)%state.releaseResults.length;drawReleaseSuggestions();
+  }else if(e.key==='Enter'){
+    e.preventDefault();
+    if(state.releaseSelected>=0)chooseRelease(state.releaseSelected);
+    else if(state.releaseResults.length===1)chooseRelease(0);
+    else if(!state.releaseResults.length)findReleaseTitles();
+    else {state.releaseSelected=0;drawReleaseSuggestions();}
+  }else if(e.key==='Escape'){state.releaseResults=[];drawReleaseSuggestions();}
+});
+$('releaseSuggestions').addEventListener('click',e=>{
+  const item=e.target.closest('[data-release-suggest]');if(item)chooseRelease(Number(item.dataset.releaseSuggest));
+});
 $('manualIssueForm').addEventListener('submit',e=>{e.preventDefault();withBusy(async()=>{const data=await api('/issues/manual',{method:'POST',body:{seriesUrl:$('manualSeries').value,issueNumber:$('manualNumber').value.trim(),releaseDate:$('manualDate').value,issueUrl:$('manualUrl').value.trim(),sendNow:$('manualSend').checked}});setOverview(data.overview);$('manualIssueForm').reset();toast('Issue added · '+data.delivery);});});
 document.body.addEventListener('click',e=>{const remove=e.target.closest('[data-remove]'),add=e.target.closest('[data-addurl]'),send=e.target.closest('[data-send]'),pdf=e.target.closest('[data-pdf]');
  if(remove){if(!confirm('Unsubscribe from this series? Delivery history will be kept.'))return;withBusy(async()=>{const data=await api(`/subscriptions/${encodeURIComponent(remove.dataset.remove)}`,{method:'DELETE'});setOverview(data.overview);toast('Series unsubscribed.');});}
