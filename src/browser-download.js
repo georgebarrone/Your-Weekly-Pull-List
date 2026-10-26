@@ -23,14 +23,14 @@ export function isEligiblePdfIssue(item){
   try {
     const url=new URL(item.issue_url);
     if(url.protocol!=='https:'||url.hostname!=='batcave.biz')return false;
-    if(!/^\\/reader\\/\\d+\\/\\d+\\/?$/.test(url.pathname))return false;
+    if(!/^\/reader\/\d+\/\d+\/?$/.test(url.pathname))return false;
   }catch{return false;}
   // Do not automate any titles explicitly marked adult.
-  if(/18\\+|adult only|erotica|hentai|pornograph/i.test(String(item.series_title||'')))return false;
+  if(/18\+|adult only|erotica|hentai|pornograph/i.test(String(item.series_title||'')))return false;
   return true;
 }
 function readerKey(input){
-  try{return new URL(input,'https://batcave.biz').pathname.replace(/\\/$/,'');}
+  try{return new URL(input,'https://batcave.biz').pathname.replace(/\/$/,'');}
   catch{return null;}
 }
 export function matchesNewestChapter(target,readerUrls){
