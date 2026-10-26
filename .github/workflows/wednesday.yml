@@ -1,21 +1,15 @@
-name: Your Weekly Pull List
+name: Weekly comic metadata preview
 on:
   schedule:
-    # Pacific DST offset varies; script checks exact America/Los_Angeles time.
     - cron: '35 20 * * 3'
     - cron: '35 21 * * 3'
   workflow_dispatch:
-    inputs:
-      dry_run:
-        description: 'Preview only, do not email'
-        type: boolean
-        default: true
 jobs:
-  email:
+  preview:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     concurrency:
-      group: weekly-pull-list
+      group: weekly-pull-list-metadata
       cancel-in-progress: false
     steps:
       - uses: actions/checkout@v4
@@ -23,16 +17,9 @@ jobs:
         with:
           node-version: '22'
       - run: npm install --no-audit --no-fund
-      - name: Run Wednesday digest
+      - name: Refresh catalog and preview without email or delivery marking
         env:
           GITHUB_EVENT_NAME: ${{ github.event_name }}
           TURSO_DATABASE_URL: ${{ secrets.TURSO_DATABASE_URL }}
           TURSO_AUTH_TOKEN: ${{ secrets.TURSO_AUTH_TOKEN }}
-          SMTP_USER: ${{ secrets.SMTP_USER }}
-          SMTP_APP_PASSWORD: ${{ secrets.SMTP_APP_PASSWORD }}
-          EMAIL_TO: ${{ secrets.EMAIL_TO }}
-          AUTHORIZED_PDF_HOSTS: ${{ secrets.AUTHORIZED_PDF_HOSTS }}
-          REQUIRE_PDF_ATTACHMENTS: ${{ vars.REQUIRE_PDF_ATTACHMENTS }}
-          DRY_RUN: ${{ inputs.dry_run }}
-        run: |
-          if [ "$DRY_RUN" = "true" ]; then node scripts/weekly.js --dry-run; else node scripts/weekly.js; fi
+        run: node scripts/weekly.js --dry-run
