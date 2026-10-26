@@ -19,7 +19,7 @@ function cover(coverUrl){const allowed = /^https:\/\//.test(coverUrl||'');return
 function empty(message,sub=''){return `<div class="empty"><strong>${h(message)}</strong>${h(sub)}</div>`;}
 function seriesCard(s){const latest=s.latest;return `<article class="series-card"><div class="series-top">${cover(latest?.cover_url)}<div><div class="series-title">${h(s.title)}</div><div class="series-meta">${h(s.publisher||'COMIC SERIES')} · ${s.kind==='limited'?'LIMITED':'ONGOING'}</div></div></div><div class="series-bottom"><span class="current">${latest?`Latest listed: ${h(latest.issue_number)}`:'Awaiting catalog data'}</span><button class="text-button" data-remove="${h(s.id)}">REMOVE ×</button></div></article>`;}
 function subscriptionRow(s){return `<div class="list-row"><div class="list-row-left"><strong>${h(s.title)}</strong><span>${h(s.kind)} · ${h(s.publisher||'Publisher unknown')} · ${s.latest?'Latest listed '+h(s.latest.issue_number):'No recent listing'}</span></div><div class="row-actions"><a href="${h(s.series_url)}" target="_blank" rel="noopener noreferrer">Series page ↗</a><button class="text-button" data-remove="${h(s.id)}">UNSUBSCRIBE ×</button></div></div>`;}
-function issueRow(c,subscribed,delivered){return `<div class="list-row"><div class="list-row-left"><strong>${h(c.series_title)} <span style="color:#ad463e">${h(c.issue_number)}</span></strong><span>${h(c.publisher)} · ${h(shortDate(c.release_date))}${c.date_source?.startsWith('Manually')?' · Manually entered':''}</span></div><div class="row-actions">${delivered?'<span class="badge">DELIVERED</span>':subscribed?'<span class="badge new">ON YOUR LIST</span>':'<span class="badge">NOT SUBSCRIBED</span>'}<a href="${h(c.issue_url)}" target="_blank" rel="noopener noreferrer">View ↗</a>${!subscribed?`<button class="btn border" data-addurl="${h(c.series_url)}">+ Subscribe</button>`:''}${subscribed&&!delivered?`<button class="btn border" data-send="${h(c.id)}">Email now ↗</button>`:''}</div></div>`;}
+function issueRow(c,subscribed,delivered){return `<div class="list-row"><div class="list-row-left"><strong>${h(c.series_title)} <span style="color:#ad463e">${h(c.issue_number)}</span></strong><span>${h(c.publisher)} · ${h(shortDate(c.release_date))}${c.date_source?.startsWith('Manually')?' · Manually entered':''}</span></div><div class="row-actions">${delivered?'<span class="badge">DELIVERED</span>':subscribed?'<span class="badge new">ON YOUR LIST</span>':'<span class="badge">NOT SUBSCRIBED</span>'}<a href="${h(c.issue_url)}" target="_blank" rel="noopener noreferrer">View ↗</a>${!subscribed?`<button class="btn border" data-addurl="${h(c.series_url)}">+ Subscribe</button>`:''}${subscribed&&!delivered?`<button class="btn border" data-send="${h(c.id)}">SEND EMAIL ↗</button><button class="btn border" data-pdf="${h(c.id)}">${c.authorized_pdf_url?'PDF LINK ✓':'SET PDF ↥'}</button>`:''}</div></div>`;}
 function setOverview(data){state.overview=data;render();}
 function render(){const data=state.overview;if(!data)return;
  const subs=data.subscriptions||[], catalog=data.catalog||[],history=data.history||[], up=data.upcoming||[],pending=data.pending||[];
@@ -47,11 +47,12 @@ function openModal(url=''){
   $('modal').classList.remove('hidden');
   $('seriesUrl').value=url;
   if(url){$('manualFallback').classList.remove('hidden');$('toggleManual').setAttribute('aria-expanded','true');$('seriesUrl').focus();}
-  else {$('seriesSearch').focus();}
+  else {$('seriesSearch').value='';state.searchResults=[];state.selectedSuggestion=-1;hideSuggestions();$('searchStatus').textContent='Enter at least 2 characters to search.';$('seriesSearch').focus();}
 }
 function closeModal(){
   $('modal').classList.add('hidden');
   state.searchRequest++;
+  clearTimeout(searchTimer);
   hideSuggestions();
 }
 function hideSuggestions(){
@@ -140,9 +141,18 @@ document.addEventListener('keydown',e=>{if(e.key==='Escape')closeModal();});
 $('addForm').addEventListener('submit',e=>{e.preventDefault();withBusy(()=>subscribe($('seriesUrl').value.trim()));});
 $('search').addEventListener('input',render);
 $('manualIssueForm').addEventListener('submit',e=>{e.preventDefault();withBusy(async()=>{const data=await api('/issues/manual',{method:'POST',body:{seriesUrl:$('manualSeries').value,issueNumber:$('manualNumber').value.trim(),releaseDate:$('manualDate').value,issueUrl:$('manualUrl').value.trim(),sendNow:$('manualSend').checked}});setOverview(data.overview);$('manualIssueForm').reset();toast('Issue added · '+data.delivery);});});
-document.body.addEventListener('click',e=>{const remove=e.target.closest('[data-remove]'),add=e.target.closest('[data-addurl]'),send=e.target.closest('[data-send]');
+document.body.addEventListener('click',e=>{const remove=e.target.closest('[data-remove]'),add=e.target.closest('[data-addurl]'),send=e.target.closest('[data-send]'),pdf=e.target.closest('[data-pdf]');
  if(remove){if(!confirm('Unsubscribe from this series? Delivery history will be kept.'))return;withBusy(async()=>{const data=await api(`/subscriptions/${encodeURIComponent(remove.dataset.remove)}`,{method:'DELETE'});setOverview(data.overview);toast('Series unsubscribed.');});}
  if(add)withBusy(()=>subscribe(add.dataset.addurl));
- if(send)withBusy(async()=>{const data=await api(`/issues/${encodeURIComponent(send.dataset.send)}/send`,{method:'POST'});setOverview(data.overview);toast('Issue email sent.');});
+ if(send)withBusy(async()=>{const data=await api(`/issues/${encodeURIComponent(send.dataset.send)}/send`,{method:'POST'});setOverview(data.overview);toast('Issue email sent. A PDF is attached only if an approved source is configured.');});
+ if(pdf){
+   const value=prompt('Enter a HTTPS PDF URL from a host you are authorized to distribute from (must be in AUTHORIZED_PDF_HOSTS). Leave blank to clear:');
+   if(value===null)return;
+   withBusy(async()=>{
+     const data=await api(`/issues/${encodeURIComponent(pdf.dataset.pdf)}/authorized-pdf`,{method:'POST',body:{url:value.trim()||null}});
+     setOverview(data.overview);
+     toast(value.trim()?'Approved PDF link saved.':'PDF link cleared.');
+   });
+ }
 });
 (async()=>{try{const status=await api('/auth');if(status.authenticated){showApp();await reload();}else showLogin();}catch(e){showLogin();toast(e.message,true);}})();
