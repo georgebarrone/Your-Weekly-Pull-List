@@ -5,6 +5,7 @@ import {rateLimit} from 'express-rate-limit';
 import {join} from 'node:path';
 import {initDb,subscriptions,catalog,createSubscription,removeSubscription,upsertCatalog,deliveryHistory,pendingIssues,recentForSeries,markDelivered,db} from './db.js';
 import {fetchSeriesMeta} from './batcave.js';
+import {searchPublicSeries} from './search.js';
 import {refresh} from './runner.js';
 import {hashPin,verifyPin,issueSession,verifySession,parseCookie,setSessionCookie,clearSession} from './auth.js';
 import {idFor,normalizeSeriesUrl,laDate,weekBounds,safeHttpUrl} from './core.js';
@@ -56,6 +57,20 @@ async function overview() {
     upcoming,history, pending,week,today};
 }
 app.get('/api/overview',async(_,res)=>{try{res.json(await overview());}catch(e){fail(res,e);}});
+app.get('/api/series/search',async(req,res)=>{
+  try {
+    const q=String(req.query.q||'').trim();
+    if(q.length<2)return res.json({results:[]});
+    if(q.length>80)return res.status(400).json({error:'Search must be 80 characters or fewer'});
+    const [entries,subs]=await Promise.all([catalog(q),subscriptions()]);
+    const local=[
+      ...entries.map(e=>({title:e.series_title,url:e.series_url,publisher:e.publisher})),
+      ...subs.map(s=>({title:s.title,url:s.series_url,publisher:s.publisher}))
+    ];
+    const results=await searchPublicSeries(q,local);
+    res.json({results});
+  }catch(e){fail(res,e);}
+});
 app.post('/api/catalog/refresh',async(_,res)=>{
   try{const count=await refresh();res.json({ok:true,imported:count,overview:await overview()});}catch(e){fail(res,e);}
 });
