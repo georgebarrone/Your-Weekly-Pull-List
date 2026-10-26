@@ -46,7 +46,7 @@ export async function sendIssues(items,{weekStart,weekEnd,mode='weekly'}) {
   if (!items.length) return {sent:false,count:0};
   const smtp=smtpConfig();
   const attachments=await attachmentsFor(items);
-  if(process.env.REQUIRE_PDF_ATTACHMENTS==='true' && attachments.length!==items.length){
+  if(process.env.REQUIRE_PDF_ATTACHMENTS!=='false' && attachments.length!==items.length){
     throw new Error(`PDF-only delivery enabled: ${attachments.length}/${items.length} approved PDFs available. No email was sent and these issues remain pending.`);
   }
   const html=digestHtml(items,{weekStart,weekEnd,mode,attachments});
