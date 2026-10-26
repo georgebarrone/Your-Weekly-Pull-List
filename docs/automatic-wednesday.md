@@ -66,3 +66,7 @@ The Windows-side runner uses the existing subscriptions in Turso, finds eligible
 The site currently describes browser-side PDF generation, and its exact modal selectors have not been validated in a signed-in session. This is a guarded first implementation, **not a confirmed unattended integration**. If `--test-one` fails, the UI automation needs adjustment based on a non-sensitive screenshot or a sanitized error message. Avoid sending your login credentials, cookies, or session files.
 
 If your PC is off, Windows can't do the download. Windows Task Scheduler's start-when-available setting can trigger on the next available opportunity, but this is not a guarantee of delivery at exactly 1:35 PM.
+
+## Check the most recent unattended run
+
+Open `data/weekly-last-run.json` after the task runs. It contains the last status, counts, and non-secret error summaries. `incomplete` means some issues remain undelivered. A local receipt is also saved under `data/weekly-pdfs/delivery-receipts.json` after the email service accepts an attachment, so a Turso update failure can be retried without resending the email.
