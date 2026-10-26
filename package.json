@@ -14,7 +14,9 @@
     "pin": "node scripts/hash-pin.js",
     "test": "node --test tests/*.test.js",
     "pdf-inbox": "node scripts/pdf-inbox.js",
-    "pdf-watch": "node scripts/pdf-inbox.js --watch"
+    "pdf-watch": "node scripts/pdf-inbox.js --watch",
+    "pdf-login": "node scripts/pdf-login.js",
+    "pdf-weekly": "node scripts/pdf-weekly.js"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
@@ -23,6 +25,7 @@
     "express": "^4.21.2",
     "express-rate-limit": "^7.5.0",
     "helmet": "^8.0.0",
-    "nodemailer": "^7.0.0"
+    "nodemailer": "^7.0.0",
+    "playwright": "^1.56.1"
   }
 }
