@@ -12,7 +12,7 @@ export async function runAutomatedWeekly({
   dryRun=false,one=false,now=new Date(),load=initDb,
   update=refresh,pending=pendingIssues,record=markDelivered,
   complete=markRun,openBrowser=openDownloadBrowser,download=downloadNewestPdf,
-  email=null,logger=console
+  email=null,pdfDir=WEEKLY_PDF_DIR,logger=console
 }={}){
   await load();
   const today=laDate(now),{start,end}=weekBounds(today);
@@ -35,13 +35,13 @@ export async function runAutomatedWeekly({
   try{
     for(const issue of work){
       try{
-        const path=join(WEEKLY_PDF_DIR,issue.id+'.pdf');
+        const path=join(pdfDir,issue.id+'.pdf');
         if(existsSync(path)){
           try{await validateLocalPdf(path);}
           catch{throw Error('An invalid cached PDF exists for this issue; remove it before retrying');}
         }else{
           if(!context)context=await openBrowser();
-          await download(context,issue);
+          await download(context,issue,{outputDir:pdfDir});
           await validateLocalPdf(path);
         }
         const filename=(clean(issue.series_title)+' '+clean(issue.issue_number)+'.pdf').slice(0,150);
