@@ -12,3 +12,5 @@ data/local-pdf-sent.json.tmp
 
 data/browser-profile/
 data/weekly-pdfs/
+
+data/weekly-last-run.json
