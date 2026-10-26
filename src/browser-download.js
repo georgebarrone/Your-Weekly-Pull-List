@@ -22,7 +22,7 @@ export function isEligiblePdfIssue(item){
   if(!item||!normalizeSeriesUrl(item.series_url))return false;
   try {
     const url=new URL(item.issue_url);
-    if(url.protocol!=='https:'||url.hostname!=='batcave.biz')return false;
+    if(url.protocol!=='https:'||!['batcave.biz','www.batcave.biz'].includes(url.hostname))return false;
     if(!/^\/reader\/\d+\/\d+\/?$/.test(url.pathname))return false;
   }catch{return false;}
   // Do not automate any titles explicitly marked adult.
@@ -61,6 +61,11 @@ export async function downloadNewestPdf(context,issue,{outputDir=WEEKLY_PDF_DIR}
   try {
     const response=await page.goto(issue.series_url,{waitUntil:'domcontentloaded',timeout:30000});
     if(!response?.ok())throw Error('Series page did not load');
+    // Refuse titles that the site explicitly flags as age-restricted.
+    const titleArea=await page.locator('h1').first().locator('xpath=..').innerText({timeout:7000}).catch(()=>'');
+    if(/18\\+|adults? only|mature readers|explicit content/i.test(titleArea)){
+      throw Error('This title is age-restricted and excluded from automated downloads');
+    }
     const links=page.locator('a[href*="/reader/"]');
     await links.first().waitFor({state:'attached',timeout:20000});
     const hrefs=await links.evaluateAll(nodes=>nodes.map(n=>n.getAttribute('href')).filter(Boolean));
