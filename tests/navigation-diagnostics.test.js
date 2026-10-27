@@ -45,3 +45,30 @@ test('only document responses are captured',()=>{
  assert.deepEqual(result.location.params,['_ct']);
  assert.ok(!JSON.stringify(result).includes('PRIVATE'));
 });
+
+test('recognizes real-world 302 / to /_c?t,u followed by 404 loop',()=>{
+  const origin='https://batcave.biz';
+  const home={origin,path:'/',params:[]};
+  const destination={origin,path:'/_c',params:['t','u']};
+  const events=Array.from({length:15},()=>[
+    {status:302,url:home,location:destination},
+    {status:404,url:destination}
+  ]).flat();
+  const summary=classifyNavigationReport(events);
+  assert.equal(summary.documents,30);
+  assert.equal(summary.redirects,15);
+  assert.equal(summary.redirectTargetFailures,15);
+  assert.equal(summary.failedRedirectPath,'/_c');
+  assert.equal(summary.likelyRedirect404Loop,true);
+});
+test('a 404 on an unrelated page does not count as failed redirect destination',()=>{
+  const origin='https://batcave.biz';
+  const events=[
+    {status:302,url:{origin,path:'/',params:[]},location:{origin,path:'/login',params:[]}},
+    {status:404,url:{origin,path:'/missing-image',params:[]}},
+    {status:200,url:{origin,path:'/login',params:[]}}
+  ];
+  const summary=classifyNavigationReport(events);
+  assert.equal(summary.redirectTargetFailures,0);
+  assert.equal(summary.likelyRedirect404Loop,false);
+});
