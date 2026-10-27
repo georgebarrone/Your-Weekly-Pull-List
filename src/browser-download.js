@@ -19,7 +19,7 @@ export async function openDownloadBrowser({profileDir=null,headless=false,browse
   await mkdir(directory,{recursive:true});
   const context=await engine.launchPersistentContext(directory,{
     headless,acceptDownloads:true,viewport:{width:1280,height:900},
-    ...(browser==='chrome'?{channel:'chrome'}:{})
+    ...(browser==='chrome'?{channel:'chrome',chromiumSandbox:true}:{})
   });
   context.setDefaultTimeout(15000);
   return context;
