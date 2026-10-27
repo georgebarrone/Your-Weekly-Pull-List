@@ -15,3 +15,4 @@ data/weekly-pdfs/
 
 data/weekly-last-run.json
 data/browser-profile-chrome/
+data/browser-diagnostic-*.json
