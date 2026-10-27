@@ -14,22 +14,40 @@ export function redactNavigationUrl(value){
   }
 }
 
+// Match failing document responses to the actual redirect destination.
+// Comparing sanitized URL shapes avoids retaining query values/session tokens
+// while recognizing both /?_ct=... and /_c?t=...&u=... patterns.
+function urlShape(part){
+  if(!part||!part.origin||!part.path)return null;
+  return [part.origin,part.path,...(part.params||[]).slice().sort()].join('|');
+}
+
 export function classifyNavigationReport(events){
-  const redirects=events.filter(x=>x.status>=300&&x.status<400);
-  const failedChecks=events.filter(x=>x.status>=400&&x.url?.params?.includes('_ct'));
-  const siteRedirects=redirects.filter(x=>x.location?.params?.includes('_ct'));
-  const loop=(siteRedirects.length>=2&&failedChecks.length>=2);
+  const redirects=events.filter(x=>x.status>=300&&x.status<400&&x.location);
+  const redirectedShapes=new Set(redirects.map(x=>urlShape(x.location)).filter(Boolean));
+  const failedTargets=events.filter(x=>x.status>=400&&urlShape(x.url)&&redirectedShapes.has(urlShape(x.url)));
+  const failedShapeCount=new Map();
+  for(const event of failedTargets){
+    const key=urlShape(event.url);
+    failedShapeCount.set(key,(failedShapeCount.get(key)||0)+1);
+  }
+  const repeatedFailingTargets=[...failedShapeCount].filter(([,count])=>count>=2);
+  const loop=repeatedFailingTargets.some(([key])=>redirects.filter(x=>urlShape(x.location)===key).length>=2);
+  const firstFailure=failedTargets[0]?.url?.path||null;
   return {
     documents:events.length,
     redirects:redirects.length,
-    checkFailures:failedChecks.length,
+    redirectTargetFailures:failedTargets.length,
+    // Kept as a compatibility alias for older diagnostic report consumers.
+    checkFailures:failedTargets.length,
+    failedRedirectPath:firstFailure,
     likelyRedirect404Loop:loop,
     diagnosis:loop
-      ? 'Repeated server redirects to _ct URLs that return HTTP errors. The browser is receiving the cycle from the website; page.reload() is not being called by this test.'
-      : failedChecks.length
-      ? 'At least one _ct request returned an HTTP error; no repeated redirect/404 cycle confirmed.'
+      ? 'Confirmed repeating HTTP redirect to a failing document URL ('+firstFailure+'). The website or its access-verification flow is returning these responses; the script does not call reload().'
+      : failedTargets.length
+      ? 'A redirect destination returned an HTTP error, but repeated cycles were not confirmed.'
       : redirects.length
-      ? 'Redirects occurred, but the known redirect/404 loop was not observed.'
+      ? 'Redirects occurred, but no HTTP errors at their destinations were observed.'
       : 'No HTTP redirect cycle was observed during the test.'
   };
 }
