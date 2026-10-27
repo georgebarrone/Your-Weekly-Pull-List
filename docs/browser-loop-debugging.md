@@ -1,8 +1,8 @@
 # Diagnosing repeated Playwright redirects
 
-If the website loads normally in everyday Chrome/Incognito but the Playwright browser repeatedly reloads with a `?_ct=` address and HTTP `302 -> 404` responses, do not keep retrying login or running the scheduled PDF job.
+If the website loads normally in everyday Chrome/Incognito but the Playwright browser repeatedly reloads with a redirected `/_c?t=...&u=...` address and HTTP `302 -> 404` responses, do not keep retrying login or running the scheduled PDF job.
 
-The script only navigates to the homepage once. Repeated redirects may be caused by the site's session, verification, or server behavior. They cannot safely be fixed by changing the target URL or blocking verification requests.
+An observed fresh Chrome profile run on October 27, 2026 showed 15 repeats of `GET /` returning `302` to `/_c?t=...&u=...` followed by a `404` document response. Our original detector missed this because it was checking for `_ct` instead of the actual `/_c` path; that detection bug is now fixed. The script only navigates to the homepage once. Repeated redirects may be caused by the site's session, verification, or server behavior. They cannot safely be fixed by changing the target URL or blocking verification requests.
 
 ## Safe compatibility test on Windows
 
@@ -17,13 +17,13 @@ npm run pdf-diagnose
 
 The diagnostic uses **installed Chrome**, a **brand-new temporary browser profile**, and Chrome's normal sandbox. It opens the homepage and observes document responses for about 12 seconds, then closes the temporary browser automatically. It does not sign in, download files, or send email.
 
-If the fresh-profile test succeeds, compare with the saved automation profile:
+If the fresh-profile test succeeds, compare with the saved automation profile. **If the fresh profile shows the same repeated `302 → 404` sequence, do not keep rerunning the site or try to defeat verification controls.**
 
 ```powershell
 npm run pdf-diagnose -- --saved
 ```
 
-The terminal displays a brief result, and a privacy-filtered report is saved at `data/browser-diagnostic-chrome-fresh.json` or `data/browser-diagnostic-chrome-saved.json`. The report records status codes, paths and **query parameter names only**; it intentionally omits query values, authentication data, cookies, headers, page contents, and downloaded content.
+The terminal displays a brief result (including **failed redirect targets**), and a privacy-filtered report is saved at `data/browser-diagnostic-chrome-fresh.json` or `data/browser-diagnostic-chrome-saved.json`. The report records status codes, paths and **query parameter names only**; it intentionally omits query values, authentication data, cookies, headers, page contents, and downloaded content.
 
 ## Interpret the result
 
