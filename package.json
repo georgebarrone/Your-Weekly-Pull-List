@@ -16,7 +16,8 @@
     "pdf-inbox": "node scripts/pdf-inbox.js",
     "pdf-watch": "node scripts/pdf-inbox.js --watch",
     "pdf-login": "node scripts/pdf-login.js",
-    "pdf-weekly": "node scripts/pdf-weekly.js"
+    "pdf-weekly": "node scripts/pdf-weekly.js",
+    "pdf-diagnose": "node scripts/pdf-diagnose.js"
   },
   "dependencies": {
     "@libsql/client": "^0.15.15",
