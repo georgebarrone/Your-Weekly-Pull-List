@@ -20,7 +20,7 @@ try{
   page.on('response',res=>{
     try{
       const item=collectNavigationResponse(res);
-      if(!item||new URL(res.url()).hostname!=='batcave.biz')return;
+      if(!item||!['batcave.biz','www.batcave.biz'].includes(new URL(res.url()).hostname))return;
       if(events.length<80)events.push(item);
     }catch{}
   });
