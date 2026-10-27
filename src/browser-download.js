@@ -6,14 +6,20 @@ import {normalizeSeriesUrl} from './core.js';
 export const PROFILE_DIR=resolve('data','browser-profile');
 export const WEEKLY_PDF_DIR=resolve('data','weekly-pdfs');
 
-// Playwright's persistent Firefox profile stays solely on the user's PC.
-// Firefox uses the normal browser download flow instead of Chromium's
-// File System Access directory picker. We never extract reader page images.
-export async function openDownloadBrowser({profileDir=PROFILE_DIR,headless=false}={}){
-  const {firefox}=await import('playwright');
-  await mkdir(profileDir,{recursive:true});
-  const context=await firefox.launchPersistentContext(profileDir,{
+// Each supported browser gets its own local persistent profile. Using Chrome
+// is a compatibility check, not a way to bypass site verification or access
+// restrictions. This never copies cookies from the user's everyday browser.
+export async function openDownloadBrowser({profileDir=null,headless=false,browser=process.env.PDF_BROWSER||'firefox'}={}){
+  if(!['firefox','chrome'].includes(browser))throw Error('PDF_BROWSER must be firefox or chrome');
+  const {firefox,chromium}=await import('playwright');
+  const engine=browser==='chrome'?chromium:firefox;
+  const directory=profileDir||(
+    browser==='chrome'?resolve('data','browser-profile-chrome'):PROFILE_DIR
+  );
+  await mkdir(directory,{recursive:true});
+  const context=await engine.launchPersistentContext(directory,{
     headless,acceptDownloads:true,viewport:{width:1280,height:900},
+    ...(browser==='chrome'?{channel:'chrome'}:{})
   });
   context.setDefaultTimeout(15000);
   return context;
