@@ -2,30 +2,50 @@ import 'dotenv/config';
 import {createInterface} from 'node:readline/promises';
 import {stdin as input,stdout as output} from 'node:process';
 import {openDownloadBrowser} from '../src/browser-download.js';
+import {classifyNavigationReport,collectNavigationResponse} from '../src/navigation-diagnostics.js';
 
-let context;
+let context,rl;
 try{
   context=await openDownloadBrowser();
   const page=context.pages()[0]||await context.newPage();
-  let navigations=0;
-  let warned=false;
-  page.on('framenavigated',frame=>{
-    if(frame!==page.mainFrame())return;
-    navigations++;
-    if(navigations>=3&&!warned){
-      warned=true;
-      console.warn('The website has navigated repeatedly in this browser. The login script only navigates once.');
-      console.warn('If sign-in never appears, close this browser and try PDF_BROWSER=chrome for a standard-browser compatibility check.');
-      console.warn('Do not continue if the website requires verification or disallows automated access.');
-    }
+  const history=[];
+  let endLoop;
+  const looping=new Promise(resolve=>{endLoop=resolve;});
+  let stopped=false;
+  page.on('response',response=>{
+    try{
+      const item=collectNavigationResponse(response);
+      if(!item||!['https://batcave.biz','https://www.batcave.biz'].includes(item.url.origin))return;
+      if(history.length>=40)history.shift();
+      history.push(item);
+      if(!stopped && classifyNavigationReport(history).likelyRedirect404Loop){
+        stopped=true;
+        endLoop(false);
+      }
+    }catch{}
   });
-  await page.goto('https://batcave.biz/',{waitUntil:'domcontentloaded'});
-  console.log('A private '+(process.env.PDF_BROWSER==='chrome'?'Chrome':'Firefox')+' profile is open. Sign in through the WEBSITE itself.');
-  console.log('Do not enter your password, cookies, or one-time codes into this terminal or GitHub.');
-  console.log('Keep the site signed in. When finished, return to this terminal.');
-  const rl=createInterface({input,output});
-  await rl.question('Press Enter ONLY after sign-in succeeds to close the browser and retain its local profile... ');
-  rl.close();
-  console.log('Browser profile preserved locally. Run npm run pdf-weekly -- --dry-run next.');
-}catch(e){console.error('Could not open login browser:',e.message);process.exitCode=1;}
-finally{if(context)await context.close();}
+  // This is our only automatic navigation. Site-generated navigation may
+  // repeat afterward; if it does, report the server redirect/404 cycle.
+  try{await page.goto('https://batcave.biz/',{waitUntil:'commit',timeout:20000});}
+  catch(error){console.warn('Homepage navigation interrupted:',error.name);}
+  console.log('A private '+(process.env.PDF_BROWSER==='chrome'?'Chrome':'Firefox')+' profile is open.');
+  console.log('Sign in through the website; never enter credentials into the terminal or GitHub.');
+  console.log('Press Enter ONLY after sign-in succeeds, not while the page is still loading.');
+  rl=createInterface({input,output});
+  const entered=rl.question('Press Enter when signed in to retain this private browser profile... ')
+    .then(()=>true).catch(()=>false);
+  const success=await Promise.race([entered,looping]);
+  if(!success){
+    console.error('Login stopped: the website is repeatedly redirecting to _ct URLs that return HTTP errors.');
+    console.error('The script does not reload the page. Run npm run pdf-diagnose to compare a fresh browser profile.');
+    process.exitCode=1;
+  }else{
+    console.log('Browser profile retained. Next: npm run pdf-weekly -- --dry-run');
+  }
+}catch(error){
+  console.error('Could not open login browser:',error.message);
+  process.exitCode=1;
+}finally{
+  if(rl)rl.close();
+  if(context)await context.close().catch(()=>{});
+}
