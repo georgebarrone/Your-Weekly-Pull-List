@@ -48,9 +48,12 @@ try{
   const file=resolve('data','browser-diagnostic-'+browser+'-'+(saved?'saved':'fresh')+'.json');
   await writeFile(file,JSON.stringify(report,null,2)+'\n',{mode:0o600});
   console.log('Result:',report.summary.diagnosis);
-  console.log('Documents:',report.summary.documents,'Redirects:',report.summary.redirects,'_ct HTTP failures:',report.summary.checkFailures);
+  console.log('Documents:',report.summary.documents,'Redirects:',report.summary.redirects,'Failed redirect targets:',report.summary.redirectTargetFailures);
   console.log('Sanitized report:',file);
-  if(report.summary.likelyRedirect404Loop)process.exitCode=2;
+  if(report.summary.likelyRedirect404Loop){
+    console.error('The remote site is repeatedly redirecting to a URL that fails. Not a Playwright page.reload() loop.');
+    process.exitCode=2;
+  }
 }catch(error){
   console.error('Browser diagnostic could not start:',error.message);
   process.exitCode=1;
