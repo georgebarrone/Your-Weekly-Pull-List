@@ -36,7 +36,7 @@ try{
     .then(()=>true).catch(()=>false);
   const success=await Promise.race([entered,looping]);
   if(!success){
-    console.error('Login stopped: the website is repeatedly redirecting to _ct URLs that return HTTP errors.');
+    console.error('Login stopped: the website is repeatedly redirecting to an HTTP error endpoint.');
     console.error('The script does not reload the page. Run npm run pdf-diagnose to compare a fresh browser profile.');
     process.exitCode=1;
   }else{
